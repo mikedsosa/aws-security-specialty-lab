@@ -1,0 +1,66 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CreateAppRolesOnlyWithBoundary",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole",
+        "iam:AttachRolePolicy",
+        "iam:DetachRolePolicy",
+        "iam:PutRolePolicy",
+        "iam:DeleteRolePolicy",
+        "iam:PutRolePermissionsBoundary"
+      ],
+      "Resource": "arn:aws:iam::${account_id}:role${workload_role_path}*",
+      "Condition": {
+        "StringEquals": {
+          "iam:PermissionsBoundary": "${boundary_policy_arn}"
+        }
+      }
+    },
+    {
+      "Sid": "ManageAppRolesWithoutBoundaryKey",
+      "Effect": "Allow",
+      "Action": [
+        "iam:DeleteRole",
+        "iam:GetRole",
+        "iam:GetRolePolicy",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListRolePolicies",
+        "iam:TagRole",
+        "iam:UntagRole",
+        "iam:UpdateRoleDescription"
+      ],
+      "Resource": "arn:aws:iam::${account_id}:role${workload_role_path}*"
+    },
+    {
+      "Sid": "PassAppRolesToLambdaOnly",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::${account_id}:role${workload_role_path}*",
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": "lambda.amazonaws.com"
+        }
+      }
+    },
+    {
+      "Sid": "DenyBoundaryRemoval",
+      "Effect": "Deny",
+      "Action": "iam:DeleteRolePermissionsBoundary",
+      "Resource": "*"
+    },
+    {
+      "Sid": "DenyBoundaryPolicyEdits",
+      "Effect": "Deny",
+      "Action": [
+        "iam:CreatePolicyVersion",
+        "iam:DeletePolicy",
+        "iam:DeletePolicyVersion",
+        "iam:SetDefaultPolicyVersion"
+      ],
+      "Resource": "${boundary_policy_arn}"
+    }
+  ]
+}

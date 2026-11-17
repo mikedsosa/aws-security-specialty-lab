@@ -1,0 +1,77 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "KeyAdministrationWithoutUse",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": ${jsonencode(key_admin_arns)}
+      },
+      "Action": [
+        "kms:CancelKeyDeletion",
+        "kms:Create*",
+        "kms:Delete*",
+        "kms:Describe*",
+        "kms:Disable*",
+        "kms:Enable*",
+        "kms:Get*",
+        "kms:List*",
+        "kms:Put*",
+        "kms:Revoke*",
+        "kms:ScheduleKeyDeletion",
+        "kms:TagResource",
+        "kms:UntagResource",
+        "kms:Update*"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "AllowCloudTrailEncryptLogs",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "cloudtrail.amazonaws.com"
+      },
+      "Action": "kms:GenerateDataKey*",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:SourceArn": "${trail_arn}"
+        },
+        "StringLike": {
+          "kms:EncryptionContext:aws:cloudtrail:arn": "arn:aws:cloudtrail:*:${management_account_id}:trail/*"
+        }
+      }
+    },
+    {
+      "Sid": "AllowCloudTrailDescribeKey",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "cloudtrail.amazonaws.com"
+      },
+      "Action": "kms:DescribeKey",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:SourceArn": "${trail_arn}"
+        }
+      }
+    },
+    {
+      "Sid": "AllowLogReaderDecryptViaS3Only",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "${log_reader_arn}"
+      },
+      "Action": "kms:Decrypt",
+      "Resource": "*",
+      "Condition": {
+        "Null": {
+          "kms:EncryptionContext:aws:cloudtrail:arn": "false"
+        },
+        "StringEquals": {
+          "kms:ViaService": "s3.${region}.amazonaws.com"
+        }
+      }
+    }
+  ]
+}

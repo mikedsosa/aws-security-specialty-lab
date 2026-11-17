@@ -1,0 +1,43 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadAndRestoreBucketPublicAccessBlock",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetBucketPublicAccessBlock",
+        "s3:PutBucketPublicAccessBlock"
+      ],
+      "Resource": "arn:aws:s3:::*",
+      "Condition": {
+        "StringEquals": {
+          "aws:ResourceAccount": "${account_id}"
+        }
+      }
+    },
+    {
+      "Sid": "WriteOwnLogs",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+      ],
+      "Resource": "arn:aws:logs:${region}:${account_id}:log-group:/aws/lambda/${function_name}:*"
+    },
+    {
+      "Sid": "SendFailedEventsToDlq",
+      "Effect": "Allow",
+      "Action": "sqs:SendMessage",
+      "Resource": "${dlq_arn}"
+    },
+    {
+      "Sid": "WriteTraces",
+      "Effect": "Allow",
+      "Action": [
+        "xray:PutTelemetryRecords",
+        "xray:PutTraceSegments"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

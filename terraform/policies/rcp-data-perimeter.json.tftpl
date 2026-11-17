@@ -1,0 +1,38 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "EnforceSecureTransport",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": [
+        "s3:*",
+        "sts:*",
+        "kms:*",
+        "sqs:*",
+        "secretsmanager:*"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "BoolIfExists": {
+          "aws:SecureTransport": "false"
+        }
+      }
+    },
+    {
+      "Sid": "EnforceOrgIdentitiesOnS3",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": "s3:*",
+      "Resource": "*",
+      "Condition": {
+        "StringNotEqualsIfExists": {
+          "aws:PrincipalOrgID": "${organization_id}"
+        },
+        "BoolIfExists": {
+          "aws:PrincipalIsAWSService": "false"
+        }
+      }
+    }
+  ]
+}
