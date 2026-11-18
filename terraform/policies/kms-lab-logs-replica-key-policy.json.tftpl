@@ -57,43 +57,6 @@
           "kms:ViaService": "s3.${replica_region}.amazonaws.com"
         }
       }
-    },
-    {
-      "Sid": "AllowS3AccessLogsEncryption",
-      "Effect": "Allow",
-      "Principal": {
-        "Service": "logging.s3.amazonaws.com"
-      },
-      "Action": [
-        "kms:GenerateDataKey*",
-        "kms:Decrypt"
-      ],
-      "Resource": "*",
-      "Condition": {
-        "StringEquals": {
-          "aws:SourceAccount": "${management_account_id}"
-        },
-        "StringLike": {
-          "kms:EncryptionContext:aws:s3:arn": [
-            "arn:aws:s3:::${replica_bucket_name}",
-            "arn:aws:s3:::${replica_bucket_name}/*"
-          ]
-        }
-      }
-    },
-    {
-      "Sid": "AllowS3AccessLogsDescribeKey",
-      "Effect": "Allow",
-      "Principal": {
-        "Service": "logging.s3.amazonaws.com"
-      },
-      "Action": "kms:DescribeKey",
-      "Resource": "*",
-      "Condition": {
-        "StringEquals": {
-          "aws:SourceAccount": "${management_account_id}"
-        }
-      }
     }
   ]
 }

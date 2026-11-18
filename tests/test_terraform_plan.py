@@ -144,3 +144,31 @@ def test_remediation_log_group_uses_cmk(resources):
     by_addr = {r["address"]: r for r in config}
     refs = by_addr["aws_cloudwatch_log_group.remediation"]["expressions"]["kms_key_id"]["references"]
     assert "aws_kms_key.lab_logs.arn" in refs
+
+
+def test_access_log_destinations_follow_aws_guidance(resources):
+    """Log destinations use SSE-S3 and no bucket logs to itself."""
+    for address in (
+        "aws_s3_bucket_server_side_encryption_configuration.access_logs",
+        "aws_s3_bucket_server_side_encryption_configuration.replica_access_logs",
+    ):
+        sse = values(resources, address)["rule"][0]["apply_server_side_encryption_by_default"][0]
+        assert sse["sse_algorithm"] == "AES256", address
+        assert not sse.get("kms_master_key_id")
+
+    # Bucket names are known only after apply, so check the configuration references.
+    config = json.loads(PLAN.read_text())["configuration"]["root_module"]["resources"]
+    by_addr = {r["address"]: r for r in config}
+
+    trail = by_addr["aws_s3_bucket_logging.trail"]["expressions"]
+    assert "aws_s3_bucket.trail.id" in trail["bucket"]["references"]
+    assert "aws_s3_bucket.access_logs.id" in trail["target_bucket"]["references"]
+    assert values(resources, "aws_s3_bucket_logging.trail")["target_prefix"] == "org-trail/"
+
+    replica = by_addr["aws_s3_bucket_logging.trail_replica"]["expressions"]
+    assert "aws_s3_bucket.trail_replica.id" in replica["bucket"]["references"]
+    assert "aws_s3_bucket.replica_access_logs.id" in replica["target_bucket"]["references"]
+    assert values(resources, "aws_s3_bucket_logging.trail_replica")["target_prefix"] == "org-trail-replica/"
+
+    assert "aws_s3_bucket_logging.access_logs" not in by_addr
+    assert "aws_s3_bucket_logging.replica_access_logs" not in by_addr

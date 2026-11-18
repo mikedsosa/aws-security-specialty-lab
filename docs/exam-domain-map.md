@@ -1,8 +1,7 @@
 # SCS-C03 exam domain map
 
 Source: AWS Certified Security - Specialty Exam Guide (SCS-C03), version 1.0, published March 26, 2026,
-https://docs.aws.amazon.com/pdfs/aws-certification/latest/security-specialty-03/security-specialty-03.pdf ,
-linked from https://aws.amazon.com/certification/certified-security-specialty/ . Both were read on
+https://docs.aws.amazon.com/pdfs/aws-certification/latest/security-specialty-03/security-specialty-03.pdf (the PDF of https://docs.aws.amazon.com/aws-certification/latest/security-specialty-03/security-specialty-03.html , which is linked from https://aws.amazon.com/certification/certified-security-specialty/ ). Both were read on
 November 17, 2026. The guide says SCS-C03 replaced SCS-C02 on December 2, 2025. Skill numbers below are
 the guide's. The guide says it "does not provide a comprehensive list of the content on the exam".
 

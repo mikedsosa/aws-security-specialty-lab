@@ -57,57 +57,6 @@
           "aws:SourceAccount": "${management_account_id}"
         }
       }
-    },
-    {
-      "Sid": "AllowS3AccessLogsEncryption",
-      "Effect": "Allow",
-      "Principal": {
-        "Service": "logging.s3.amazonaws.com"
-      },
-      "Action": [
-        "kms:GenerateDataKey*",
-        "kms:Decrypt"
-      ],
-      "Resource": "*",
-      "Condition": {
-        "StringEquals": {
-          "aws:SourceAccount": "${management_account_id}"
-        },
-        "StringLike": {
-          "kms:EncryptionContext:aws:s3:arn": [
-            "arn:aws:s3:::${access_logs_bucket_name}",
-            "arn:aws:s3:::${access_logs_bucket_name}/*"
-          ]
-        }
-      }
-    },
-    {
-      "Sid": "AllowS3AccessLogsDescribeKey",
-      "Effect": "Allow",
-      "Principal": {
-        "Service": "logging.s3.amazonaws.com"
-      },
-      "Action": "kms:DescribeKey",
-      "Resource": "*",
-      "Condition": {
-        "StringEquals": {
-          "aws:SourceAccount": "${management_account_id}"
-        }
-      }
-    },
-    {
-      "Sid": "AllowLogReaderDecryptViaS3Only",
-      "Effect": "Allow",
-      "Principal": {
-        "AWS": "${log_reader_arn}"
-      },
-      "Action": "kms:Decrypt",
-      "Resource": "*",
-      "Condition": {
-        "StringEquals": {
-          "kms:ViaService": "s3.${region}.amazonaws.com"
-        }
-      }
     }
   ]
 }

@@ -32,9 +32,7 @@ Questions:
 
 - `no_match` from an SCP is not "allow". What else must be true for the break-glass call to succeed?
   (An allow from an attached SCP such as FullAWSAccess, plus an identity policy allow.)
-- Leave out `aws:RequestedRegion` and run the last command again. The result becomes `explicit_deny`,
-  because a negated operator is true when the key is missing (IAM condition operator docs). Real requests
-  carry this key; the point is to read negated conditions carefully.
+- Run the third command again with `--context aws:RequestedRegion=us-east-1`; the result is `no_match`. Then leave out `aws:RequestedRegion` entirely. The result becomes `explicit_deny` (DenyUnapprovedRegions), because a negated operator is true when the key is missing (IAM condition operator docs). Real requests carry this key; the point is to read negated conditions carefully. The last command stays `no_match` either way, because `iam:*` is in the statement's `NotAction` list.
 - Why does this SCP not protect the organization trail itself? (SCPs do not affect users or roles in the
   management account, and the organization trail lives there.)
 
@@ -67,8 +65,7 @@ sed -i 's/enable_log_file_validation    = true/enable_log_file_validation    = f
 .venv/bin/checkov -d /tmp/mut --framework terraform --check CKV_AWS_36,CKV_AWS_7 --compact
 ```
 
-Expected: `Passed checks: 0, Failed checks: 2` with CKV_AWS_7 on `aws_kms_key.cloudtrail` and CKV_AWS_36 on
-`aws_cloudtrail.org`. The same command on `terraform/` gives `Passed checks: 2, Failed checks: 0`.
+Expected: `Passed checks: 2, Failed checks: 2`, with CKV_AWS_7 failing on `aws_kms_key.cloudtrail` and CKV_AWS_36 on `aws_cloudtrail.org` (the `lab_logs` and `lab_logs_replica` keys in `log-archive.tf` still pass CKV_AWS_7). The same command on `terraform/` gives `Passed checks: 4, Failed checks: 0`.
 
 Question: log file validation writes hourly digest files. Which command proves a log was not changed
 after delivery? (`aws cloudtrail validate-logs --trail-arn ... --start-time ...`, per the CloudTrail
@@ -92,7 +89,7 @@ Expected: `no_match` (admins administer, they do not decrypt), `allow` (AllowLog
 
 Then add `"kms:Decrypt",` to the `KeyAdministrationWithoutUse` action list and run
 `.venv/bin/pytest -q tests/test_policies.py -k kms`. Expected: `test_kms_admins_cannot_use_the_key` fails
-(1 failed, 4 passed). Put the line back.
+(1 failed, 7 passed). Put the line back.
 
 Question: this policy has no `arn:aws:iam::<account>:root` statement. What protects you from locking
 yourself out? (The deployer role is a key administrator, and KMS's policy lockout safety check rejects a
@@ -150,15 +147,15 @@ logging is enabled (EventBridge docs). Which resource in this lab satisfies that
 .venv/bin/checkov -d terraform --framework terraform --compact
 ```
 
-Expected: `Passed checks: 152, Failed checks: 0, Skipped checks: 7`. The four directory-mode
+Expected: `Passed checks: 165, Failed checks: 0, Skipped checks: 12`. The four directory-mode
 failures from the first draft (CKV2_AWS_3, CKV2_AWS_62, CKV_AWS_18, CKV_AWS_144 on the trail bucket)
-are fixed. The remaining skips and the 12 plan-mode failures are explained in the README results
+are fixed. The remaining skips and the 17 plan-mode failures are explained in the README results
 section. Optionally run:
 
 ```bash
 .venv/bin/checkov -f build/plan.json --framework terraform_plan --compact
 ```
 
-Expected: `Passed checks: 131, Failed checks: 12, Skipped checks: 0` after `./scripts/offline-plan.sh`.
-Plan mode ignores the inline skips. Pick one of those 12 and decide whether you agree with the README's
+Expected: `Passed checks: 145, Failed checks: 17, Skipped checks: 0` after `./scripts/offline-plan.sh`.
+Plan mode ignores the inline skips. Pick one of those 17 and decide whether you agree with the README's
 reason for leaving it.
