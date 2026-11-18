@@ -13,6 +13,7 @@ resource "aws_kms_key" "cloudtrail" {
     management_account_id = var.management_account_id
     log_reader_arn        = local.log_reader_arn
     region                = var.region
+    replication_role_arn  = local.replication_role_arn
   })
 }
 

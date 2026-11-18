@@ -10,6 +10,12 @@ variable "region" {
   default     = "us-east-1"
 }
 
+variable "replica_region" {
+  description = "Second Region for trail bucket replication. Default is already in allowed_regions."
+  type        = string
+  default     = "us-west-2"
+}
+
 variable "name_prefix" {
   description = "Prefix for resource names."
   type        = string

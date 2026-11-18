@@ -17,9 +17,9 @@ resource "aws_sqs_queue" "remediation_dlq" {
 }
 
 resource "aws_cloudwatch_log_group" "remediation" {
-  #checkov:skip=CKV_AWS_158:Logs hold bucket names and decisions only; a second CMK is out of scope for this lab.
-  name              = "/aws/lambda/${local.remediation_function_name}"
+  name              = local.remediation_log_group_name
   retention_in_days = 365
+  kms_key_id        = aws_kms_key.lab_logs.arn
 }
 
 data "aws_iam_policy_document" "lambda_trust" {

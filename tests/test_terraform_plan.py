@@ -119,6 +119,28 @@ def test_eventbridge_rules_use_repo_patterns(resources):
 
 
 def test_detection_services_planned(resources):
-    assert values(resources, "aws_guardduty_detector.this[0]")["enable"] is True
+    assert values(resources, "aws_guardduty_detector.this")["enable"] is True
     assert values(resources, "aws_guardduty_detector_feature.s3_data_events[0]")["status"] == "ENABLED"
     assert values(resources, "aws_securityhub_account.this[0]")["enable_default_standards"] is False
+    org = values(resources, "aws_guardduty_organization_configuration.this")
+    assert org["auto_enable_organization_members"] == "ALL"
+
+
+def test_trail_bucket_logging_notifications_and_replication(resources):
+    logging = values(resources, "aws_s3_bucket_logging.trail")
+    assert logging["target_prefix"] == "org-trail/"
+    notification = values(resources, "aws_s3_bucket_notification.trail")
+    assert notification["eventbridge"] is True
+    repl = values(resources, "aws_s3_bucket_replication_configuration.trail")
+    rule = repl["rule"][0]
+    assert rule["status"] == "Enabled"
+    assert rule["source_selection_criteria"][0]["sse_kms_encrypted_objects"][0]["status"] == "Enabled"
+
+
+def test_remediation_log_group_uses_cmk(resources):
+    group = values(resources, "aws_cloudwatch_log_group.remediation")
+    assert group["retention_in_days"] == 365
+    config = json.loads(PLAN.read_text())["configuration"]["root_module"]["resources"]
+    by_addr = {r["address"]: r for r in config}
+    refs = by_addr["aws_cloudwatch_log_group.remediation"]["expressions"]["kms_key_id"]["references"]
+    assert "aws_kms_key.lab_logs.arn" in refs

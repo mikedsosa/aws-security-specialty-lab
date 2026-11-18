@@ -150,6 +150,15 @@ logging is enabled (EventBridge docs). Which resource in this lab satisfies that
 .venv/bin/checkov -d terraform --framework terraform --compact
 ```
 
-Expected: `Passed checks: 87, Failed checks: 4, Skipped checks: 6`. Decide for each failure (CKV2_AWS_3,
-CKV2_AWS_62, CKV_AWS_18, CKV_AWS_144) whether to fix, skip with a reason, or accept. See the README's
-results section for this repo's current answer.
+Expected: `Passed checks: 152, Failed checks: 0, Skipped checks: 7`. The four directory-mode
+failures from the first draft (CKV2_AWS_3, CKV2_AWS_62, CKV_AWS_18, CKV_AWS_144 on the trail bucket)
+are fixed. The remaining skips and the 12 plan-mode failures are explained in the README results
+section. Optionally run:
+
+```bash
+.venv/bin/checkov -f build/plan.json --framework terraform_plan --compact
+```
+
+Expected: `Passed checks: 131, Failed checks: 12, Skipped checks: 0` after `./scripts/offline-plan.sh`.
+Plan mode ignores the inline skips. Pick one of those 12 and decide whether you agree with the README's
+reason for leaving it.

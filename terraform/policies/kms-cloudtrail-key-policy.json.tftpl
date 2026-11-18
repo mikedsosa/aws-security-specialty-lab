@@ -72,6 +72,23 @@
           "kms:ViaService": "s3.${region}.amazonaws.com"
         }
       }
+    },
+    {
+      "Sid": "AllowReplicationRoleDecrypt",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "${replication_role_arn}"
+      },
+      "Action": [
+        "kms:Decrypt",
+        "kms:DescribeKey"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "kms:ViaService": "s3.${region}.amazonaws.com"
+        }
+      }
     }
   ]
 }

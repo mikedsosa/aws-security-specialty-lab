@@ -23,6 +23,15 @@ from scs_lab.render import render_all  # noqa: E402
 ACCEPTED = {
     # Key policies use "Resource": "*" to mean "this key"; parliament treats them like identity policies.
     ("kms-cloudtrail-key-policy", "RESOURCE_STAR"): "key policy Resource * means this key",
+    ("kms-lab-logs-key-policy", "RESOURCE_STAR"): "key policy Resource * means this key",
+    ("kms-lab-logs-replica-key-policy", "RESOURCE_STAR"): "key policy Resource * means this key",
+    # Log group ARNs contain a slash after log-group:, so parliament types the
+    # value as String. AWS's CloudWatch Logs key policy example uses ArnEquals
+    # on kms:EncryptionContext:aws:logs:arn with that same ARN shape.
+    (
+        "kms-lab-logs-key-policy",
+        "MISMATCHED_TYPE",
+    ): "ArnEquals on a log group ARN; parliament types the slash in the name as String",
     # AWS's permission-boundary delegation examples use StringEquals with the boundary ARN.
     (
         "iam-role-creator",

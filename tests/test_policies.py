@@ -303,6 +303,23 @@ def test_kms_log_reader_decrypt_needs_s3_and_cloudtrail_context():
 # --- Trail bucket policy ----------------------------------------------------------------
 
 
+def test_kms_replication_role_can_decrypt_via_s3_only():
+    via_s3 = decide(
+        "kms-cloudtrail-key-policy",
+        "kms:Decrypt",
+        principal_arn="arn:aws:iam::111122223333:role/scs-lab-s3-replication",
+        context={"kms:ViaService": "s3.us-east-1.amazonaws.com"},
+    )
+    assert via_s3.decision == "allow"
+    assert via_s3.matched_allow == ["AllowReplicationRoleDecrypt"]
+    direct = decide(
+        "kms-cloudtrail-key-policy",
+        "kms:Decrypt",
+        principal_arn="arn:aws:iam::111122223333:role/scs-lab-s3-replication",
+    )
+    assert direct.decision == "no_match"
+
+
 def test_bucket_allows_cloudtrail_org_write_with_acl_and_source_arn():
     d = decide(
         "s3-trail-bucket-policy",

@@ -30,9 +30,9 @@ lists what is not covered.
 | --- | --- | --- |
 | SCP: deny leaving the org, root user actions, security telemetry tampering, account BPA changes, unapproved Regions (break-glass role exempt) | `terraform/governance.tf`, `terraform/policies/scp-guardrails.json.tftpl` | 6 |
 | RCP: deny non-TLS requests and S3 access from outside the organization | `terraform/policies/rcp-data-perimeter.json.tftpl` | 5, 6 |
-| Organization trail, multi-Region, log file validation, SSE-KMS, versioned bucket with BPA, ownership enforced, TLS-only and no-delete bucket policy | `terraform/logging.tf` | 1, 5 |
+| Organization trail, multi-Region, log file validation, SSE-KMS, versioned bucket with BPA, ownership enforced, TLS-only and no-delete bucket policy, S3 access logging, EventBridge notifications, and cross-Region replication to us-west-2 | `terraform/logging.tf`, `terraform/log-archive.tf` | 1, 5 |
 | KMS key policy: admins cannot use the key; CloudTrail encrypts only for this trail (`aws:SourceArn`); one reader decrypts only through S3 and only CloudTrail-encrypted data | `terraform/policies/kms-cloudtrail-key-policy.json.tftpl` | 5 |
-| GuardDuty detector with S3 protection, Security Hub CSPM with FSBP, delegated admin for both | `terraform/detection.tf` | 1, 6 |
+| GuardDuty detector with S3 protection, org-wide auto-enable for all members, Security Hub CSPM with FSBP, delegated admin for both | `terraform/detection.tf` | 1, 6 |
 | Permission boundary plus a role-creator role that can create `/app/` roles only with that boundary and cannot remove or edit it | `terraform/identity.tf` | 4 |
 | EventBridge (CloudTrail BPA changes and the GuardDuty finding) to an idempotent Lambda that turns bucket BPA back on, with DLQ, retries and reserved concurrency | `terraform/remediation.tf`, `lambda/remediate_s3_bpa/handler.py` | 2, 6 |
 | Incident runbook: leaked access key used to make a bucket public | [docs/runbook-s3-public-exposure.md](docs/runbook-s3-public-exposure.md) | 2 |
@@ -74,46 +74,61 @@ moto 5.2.5, boto3 1.44.4, pytest 9.2.0 and ruff 0.17.5.
 | Command | Result |
 | --- | --- |
 | `ruff check .` | All checks passed |
-| `ruff format --check .` | 16 files already formatted |
+| `ruff format --check .` | 17 files already formatted |
 | `terraform -chdir=terraform fmt -recursive -check` | exit 0 |
 | `terraform -chdir=terraform validate` | Success. The configuration is valid. |
 | `tflint --format compact` (in `terraform/`) | no issues, exit 0 |
-| `python scripts/lint_policies.py` (parliament) | 5 findings, all accepted below, 0 unexpected |
-| `pytest -q` before the plan exists | 79 passed, 16 skipped (plan tests) |
-| `./scripts/offline-plan.sh` | Plan: 35 to add, 0 to change, 0 to destroy |
-| `pytest -q` after the plan | 95 passed |
-| `checkov -d terraform --framework terraform` | Passed 87, Failed 4, Skipped 6 |
-| `checkov -f build/plan.json --framework terraform_plan` | Passed 78, Failed 12, Skipped 0 |
+| `python scripts/lint_policies.py` (parliament) | 18 findings, all accepted below, 0 unexpected |
+| `pytest -q` before the plan exists | 85 passed, 18 skipped (plan tests) |
+| `./scripts/offline-plan.sh` | Plan: 63 to add, 0 to change, 0 to destroy |
+| `pytest -q` after the plan | 103 passed |
+| `checkov -d terraform --framework terraform` | Passed 152, Failed 0, Skipped 7 |
+| `checkov -f build/plan.json --framework terraform_plan` | Passed 131, Failed 12, Skipped 0 |
 
 What the tests cover: 17 remediation tests with moto S3 (restore after delete, partial put, GuardDuty
 finding, loop guard, exemption list, dry run, failed API calls, malformed events, missing bucket); 4
-EventBridge pattern tests through moto's matcher; 58 policy tests (rendering, Organizations size limits
+EventBridge pattern tests through moto's matcher; 64 policy tests (rendering, Organizations size limits
 of 10,240 characters for SCPs and 5,120 for RCPs, placeholder-only account IDs, and request decisions for
-every policy); 16 tests against the offline plan JSON.
+every policy); 18 tests against the offline plan JSON.
 
-Accepted parliament findings: `RESOURCE_STAR` four times on the KMS key policy (in a key policy,
-`"Resource": "*"` means this key) and `MISMATCHED_TYPE_BUT_USABLE` once on the role creator
+Accepted parliament findings: `RESOURCE_STAR` 16 times on the three KMS key policies (in a key policy,
+`"Resource": "*"` means this key), `MISMATCHED_TYPE_BUT_USABLE` once on the role creator
 (`StringEquals` on the ARN-typed `iam:PermissionsBoundary`, the form AWS's own boundary delegation example
-uses).
+uses), and `MISMATCHED_TYPE` once on the lab-logs key policy (`ArnEquals` on
+`kms:EncryptionContext:aws:logs:arn` with a log group ARN; parliament types the slash in the log group
+name as String. This is the condition shape in AWS's CloudWatch Logs key policy example).
 
-Open checkov findings in the directory scan, left visible on purpose:
+Directory-mode checkov findings that were open on the first draft are now fixed:
 
-| Check | Resource | Why it is open |
+| Check | What changed |
+| --- | --- |
+| CKV2_AWS_3 GuardDuty org config | Added `aws_guardduty_organization_configuration` with `auto_enable_organization_members = "ALL"`. The detector and this resource do not use `count`, because checkov 3.1.47's graph check does not connect counted resources (a counted pair still failed the scan). In a real organization this resource is created in the delegated admin account; the lab keeps it in the same root so the offline plan can include it. |
+| CKV_AWS_18 access logging | Added `aws_s3_bucket.access_logs` and `aws_s3_bucket_logging.trail`. The access-log bucket logs to itself under the `access-logs/` prefix. |
+| CKV_AWS_144 cross-Region replication | Added a us-west-2 replica bucket, a replica-Region CMK, a replication role, and `aws_s3_bucket_replication_configuration.trail` with status Enabled. |
+| CKV2_AWS_62 event notifications | Added `aws_s3_bucket_notification` with `eventbridge = true` on the trail, access-log, and replica buckets. |
+| CKV_AWS_158 log group CMK | The remediation log group now uses `aws_kms_key.lab_logs`. This was previously an inline skip. |
+
+The seven directory-mode skips (with reasons in the code) are CKV2_AWS_10 and CKV_AWS_252 on the trail,
+CKV_AWS_117, CKV_AWS_272 and CKV_AWS_173 on the Lambda, and CKV_AWS_144 on the access-log bucket and on
+the replica bucket (each would be a third copy of the data). Plan mode ignores inline skips, so those
+reappear there, except CKV_AWS_173 (which does not) and CKV_AWS_144 on the replica bucket (plan mode
+treats the destination bucket as connected to the replication configuration and passes it).
+
+The 12 plan-mode failures, with why they were not changed:
+
+| Check | Resource | Why it is documented, not changed |
 | --- | --- | --- |
-| CKV2_AWS_3 GuardDuty org config | `aws_guardduty_detector.this[0]` | Needs `aws_guardduty_organization_configuration` in the delegated admin account, which needs a second provider that assumes a role there. Not possible offline. |
-| CKV_AWS_18 access logging | `aws_s3_bucket.trail` | Needs another log bucket; in practice this belongs in a log archive account. |
-| CKV_AWS_144 cross-Region replication | `aws_s3_bucket.trail` | Cost and a second Region bucket; out of scope. |
-| CKV2_AWS_62 event notifications | `aws_s3_bucket.trail` | No consumer for them in this lab. |
-
-The six inline skips (with reasons in the code) are CKV2_AWS_10 and CKV_AWS_252 on the trail,
-CKV_AWS_158 on the log group, and CKV_AWS_117, CKV_AWS_272 and CKV_AWS_173 on the Lambda. Plan mode
-ignores inline skips, so those reappear there (CKV_AWS_173 does not), along with three checks that pass
-in the directory scan: CKV_AWS_61 on the role creator's trust policy (same-account root principal with
-MFA), CKV_AWS_93 on the trail bucket policy (the deny-delete statement for every principal), and
-CKV_AWS_300 on the lifecycle rule, which does set `abort_incomplete_multipart_upload` to 7 days in the
-plan JSON. That last one looks like a plan-mode false positive; it was not investigated further.
+| CKV2_AWS_10 | `aws_cloudtrail.org` | CloudWatch Logs delivery is a paid add-on; EventBridge already receives management events for the remediation path. |
+| CKV_AWS_252 | `aws_cloudtrail.org` | No SNS topic; delivery notifications are out of scope for this lab. |
+| CKV_AWS_117 | `aws_lambda_function.remediation` | The function only calls the S3 control plane. A VPC would add NAT or endpoint cost and is Domain 3 content, which is scheduled later. |
+| CKV_AWS_272 | `aws_lambda_function.remediation` | Code signing needs AWS Signer and a signing profile; out of scope for an offline lab. |
+| CKV_AWS_144 | `aws_s3_bucket.access_logs` | This is the access-log target. A further replica would be a third copy. The same skip is on the replica bucket in directory mode. |
+| CKV_AWS_61 | `aws_iam_role.role_creator` | The trust policy allows the same-account root principal only when MFA is present. The check flags any account-root principal and does not read the MFA condition. Directory mode sees a data-source reference, not the rendered ARN, and passes. The lab keeps the stated trust design. |
+| CKV_AWS_93 | `aws_s3_bucket_policy.trail`, `.access_logs`, `.trail_replica` | `DenyLogDeletion` denies only `s3:DeleteObject` and `s3:DeleteObjectVersion` to `"Principal": "*"`, so object writes, reads and bucket policy updates still work. The check treats any unconditional Deny to `*` as a lockout. Directory mode does not parse `templatefile()` and passes. |
+| CKV_AWS_300 | the three lifecycle configurations | Each rule sets `abort_incomplete_multipart_upload` to 7 days and uses an empty `filter {}` so the rule applies to all objects (the AWS provider requires `filter` or `prefix`). In plan JSON that empty filter becomes a truthy object with null/empty keys, and the check then skips the rule and fails. Directory mode sees `filter {}` as an empty object and passes. Removing the filter produces a provider warning that will become an error. |
 
 ## Limitations
+
 
 - Never applied. Plan success does not prove apply success. Known apply-time needs: an existing
   organization with SCPs and RCPs enabled, trusted access for CloudTrail, GuardDuty and Security Hub,
@@ -135,4 +150,4 @@ plan JSON. That last one looks like a plan-mode false positive; it was not inves
 
 ## License
 
-Not chosen yet. Third-party notices are in [NOTICE.md](NOTICE.md).
+MIT. See [LICENSE](LICENSE). Third-party notices are in [NOTICE.md](NOTICE.md).

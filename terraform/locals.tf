@@ -15,4 +15,11 @@ locals {
   workload_role_path   = "/app/"
 
   remediation_function_name = "${var.name_prefix}-remediate-s3-bpa"
+
+  access_logs_bucket_name    = "${var.name_prefix}-org-trail-access-logs-${var.management_account_id}"
+  trail_replica_bucket_name  = "${var.name_prefix}-org-trail-replica-${var.management_account_id}"
+  replication_role_name      = "${var.name_prefix}-s3-replication"
+  replication_role_arn       = "arn:${local.partition}:iam::${var.management_account_id}:role/${local.replication_role_name}"
+  remediation_log_group_name = "/aws/lambda/${local.remediation_function_name}"
+  remediation_log_group_arn  = "arn:${local.partition}:logs:${var.region}:${var.management_account_id}:log-group:${local.remediation_log_group_name}"
 }

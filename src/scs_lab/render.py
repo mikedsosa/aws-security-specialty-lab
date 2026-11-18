@@ -36,6 +36,12 @@ EXAMPLE_TRAIL_ARN = "arn:aws:cloudtrail:us-east-1:111122223333:trail/scs-lab-org
 EXAMPLE_LOG_READER = "arn:aws:iam::444455556666:role/SecurityLogReader"
 EXAMPLE_BOUNDARY_ARN = "arn:aws:iam::111122223333:policy/scs-lab-workload-boundary"
 EXAMPLE_BUCKET = "scs-lab-org-trail-111122223333"
+EXAMPLE_ACCESS_LOGS_BUCKET = "scs-lab-org-trail-access-logs-111122223333"
+EXAMPLE_REPLICA_BUCKET = "scs-lab-org-trail-replica-111122223333"
+EXAMPLE_REPLICATION_ROLE = "arn:aws:iam::111122223333:role/scs-lab-s3-replication"
+EXAMPLE_LOG_GROUP_ARN = "arn:aws:logs:us-east-1:111122223333:log-group:/aws/lambda/scs-lab-remediate-s3-bpa"
+EXAMPLE_CLOUDTRAIL_KEY_ARN = "arn:aws:kms:us-east-1:111122223333:key/00000000-0000-0000-0000-000000000001"
+EXAMPLE_REPLICA_KEY_ARN = "arn:aws:kms:us-west-2:111122223333:key/00000000-0000-0000-0000-000000000002"
 
 TEMPLATE_VARS: dict[str, dict[str, Any]] = {
     "scp-guardrails": {
@@ -52,6 +58,49 @@ TEMPLATE_VARS: dict[str, dict[str, Any]] = {
         "management_account_id": EXAMPLE["management_account_id"],
         "log_reader_arn": EXAMPLE_LOG_READER,
         "region": EXAMPLE["region"],
+        "replication_role_arn": EXAMPLE_REPLICATION_ROLE,
+    },
+    "kms-lab-logs-key-policy": {
+        "key_admin_arns": [
+            "arn:aws:iam::111122223333:role/KeyAdmin",
+            "arn:aws:iam::111122223333:role/TerraformDeployer",
+        ],
+        "region": EXAMPLE["region"],
+        "management_account_id": EXAMPLE["management_account_id"],
+        "log_group_arn": EXAMPLE_LOG_GROUP_ARN,
+        "access_logs_bucket_name": EXAMPLE_ACCESS_LOGS_BUCKET,
+        "log_reader_arn": EXAMPLE_LOG_READER,
+    },
+    "kms-lab-logs-replica-key-policy": {
+        "key_admin_arns": [
+            "arn:aws:iam::111122223333:role/KeyAdmin",
+            "arn:aws:iam::111122223333:role/TerraformDeployer",
+        ],
+        "replica_region": "us-west-2",
+        "management_account_id": EXAMPLE["management_account_id"],
+        "replication_role_arn": EXAMPLE_REPLICATION_ROLE,
+        "log_reader_arn": EXAMPLE_LOG_READER,
+        "replica_bucket_name": EXAMPLE_REPLICA_BUCKET,
+    },
+    "s3-access-logs-bucket-policy": {
+        "bucket_name": EXAMPLE_ACCESS_LOGS_BUCKET,
+        "trail_bucket_name": EXAMPLE_BUCKET,
+        "management_account_id": EXAMPLE["management_account_id"],
+        "log_reader_arn": EXAMPLE_LOG_READER,
+    },
+    "s3-trail-replica-bucket-policy": {
+        "bucket_name": EXAMPLE_REPLICA_BUCKET,
+        "replication_role_arn": EXAMPLE_REPLICATION_ROLE,
+        "management_account_id": EXAMPLE["management_account_id"],
+        "log_reader_arn": EXAMPLE_LOG_READER,
+    },
+    "iam-s3-replication": {
+        "source_bucket_name": EXAMPLE_BUCKET,
+        "destination_bucket_name": EXAMPLE_REPLICA_BUCKET,
+        "source_key_arn": EXAMPLE_CLOUDTRAIL_KEY_ARN,
+        "destination_key_arn": EXAMPLE_REPLICA_KEY_ARN,
+        "region": EXAMPLE["region"],
+        "replica_region": "us-west-2",
     },
     "s3-trail-bucket-policy": {
         "bucket_name": EXAMPLE_BUCKET,

@@ -1,0 +1,113 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "KeyAdministrationWithoutUse",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": ${jsonencode(key_admin_arns)}
+      },
+      "Action": [
+        "kms:CancelKeyDeletion",
+        "kms:Create*",
+        "kms:Delete*",
+        "kms:Describe*",
+        "kms:Disable*",
+        "kms:Enable*",
+        "kms:Get*",
+        "kms:List*",
+        "kms:Put*",
+        "kms:Revoke*",
+        "kms:ScheduleKeyDeletion",
+        "kms:TagResource",
+        "kms:UntagResource",
+        "kms:Update*"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "AllowCloudWatchLogs",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "logs.${region}.amazonaws.com"
+      },
+      "Action": [
+        "kms:Encrypt",
+        "kms:Decrypt",
+        "kms:ReEncrypt*",
+        "kms:GenerateDataKey*"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "ArnEquals": {
+          "kms:EncryptionContext:aws:logs:arn": "${log_group_arn}"
+        }
+      }
+    },
+    {
+      "Sid": "AllowCloudWatchLogsDescribeKey",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "logs.${region}.amazonaws.com"
+      },
+      "Action": "kms:DescribeKey",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:SourceAccount": "${management_account_id}"
+        }
+      }
+    },
+    {
+      "Sid": "AllowS3AccessLogsEncryption",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "logging.s3.amazonaws.com"
+      },
+      "Action": [
+        "kms:GenerateDataKey*",
+        "kms:Decrypt"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:SourceAccount": "${management_account_id}"
+        },
+        "StringLike": {
+          "kms:EncryptionContext:aws:s3:arn": [
+            "arn:aws:s3:::${access_logs_bucket_name}",
+            "arn:aws:s3:::${access_logs_bucket_name}/*"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "AllowS3AccessLogsDescribeKey",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "logging.s3.amazonaws.com"
+      },
+      "Action": "kms:DescribeKey",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:SourceAccount": "${management_account_id}"
+        }
+      }
+    },
+    {
+      "Sid": "AllowLogReaderDecryptViaS3Only",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "${log_reader_arn}"
+      },
+      "Action": "kms:Decrypt",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "kms:ViaService": "s3.${region}.amazonaws.com"
+        }
+      }
+    }
+  ]
+}
