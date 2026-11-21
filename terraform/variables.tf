@@ -119,3 +119,31 @@ variable "enable_detection_services" {
   type        = bool
   default     = true
 }
+
+variable "workload_vpc_cidr" {
+  description = "CIDR for the study VPC used by the Domain 3 network and compute exercises."
+  type        = string
+  default     = "10.42.0.0/16"
+
+  validation {
+    condition     = can(cidrnetmask(var.workload_vpc_cidr))
+    error_message = "workload_vpc_cidr must be a valid IPv4 CIDR."
+  }
+}
+
+variable "workload_ami_id" {
+  description = "Placeholder AMI ID for the workload launch template. It is not looked up and was not used to start an instance. Replace it before any apply, which this lab does not do."
+  type        = string
+  default     = "ami-0123456789abcdef0"
+
+  validation {
+    condition     = can(regex("^ami-[0-9a-f]{8,17}$", var.workload_ami_id))
+    error_message = "workload_ami_id must look like an AMI ID."
+  }
+}
+
+variable "enable_inspector" {
+  description = "Create Amazon Inspector v2 enabler resources. Inspector is a paid service after any trial period."
+  type        = bool
+  default     = true
+}

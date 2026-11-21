@@ -172,3 +172,110 @@ def test_access_log_destinations_follow_aws_guidance(resources):
 
     assert "aws_s3_bucket_logging.access_logs" not in by_addr
     assert "aws_s3_bucket_logging.replica_access_logs" not in by_addr
+
+
+def test_workload_vpc_is_isolated_and_has_flow_logs(resources):
+    vpc = values(resources, "aws_vpc.workload")
+    assert vpc["cidr_block"] == "10.42.0.0/16"
+    assert vpc["enable_dns_support"] is True
+    assert vpc["enable_dns_hostnames"] is True
+
+    flow = values(resources, "aws_flow_log.workload")
+    assert flow["traffic_type"] == "ALL"
+    assert flow["log_destination_type"] == "cloud-watch-logs"
+    assert flow["max_aggregation_interval"] == 60
+
+    default_sg = values(resources, "aws_default_security_group.workload")
+    assert default_sg.get("ingress") in (None, [], [{}]) or default_sg["ingress"] == []
+    # Default SG should have no ingress or egress rules.
+    for key in ("ingress", "egress"):
+        rules = default_sg.get(key) or []
+        assert rules == [] or rules == [{}], (key, rules)
+
+
+def test_app_security_group_has_no_ssh_and_no_open_ingress(resources):
+    # Ingress and egress live on the dedicated rule resources in plan JSON.
+    ingress_addrs = [a for a in resources if a.startswith("aws_vpc_security_group_ingress_rule.")]
+    egress_addrs = [a for a in resources if a.startswith("aws_vpc_security_group_egress_rule.")]
+    for address in ingress_addrs:
+        rule = values(resources, address)
+        assert not (rule.get("from_port") == 22 or rule.get("to_port") == 22), address
+        assert rule.get("cidr_ipv4") != "0.0.0.0/0", address
+    # App ingress is empty: only the endpoints SG has an ingress rule.
+    assert ingress_addrs == ["aws_vpc_security_group_ingress_rule.endpoints_https_from_app"]
+    assert "aws_vpc_security_group_egress_rule.app_https_to_endpoints" in egress_addrs
+
+
+def test_app_network_acl_denies_ssh(resources):
+    deny_in = values(resources, "aws_network_acl_rule.app_ingress_deny_ssh")
+    deny_out = values(resources, "aws_network_acl_rule.app_egress_deny_ssh")
+    for rule in (deny_in, deny_out):
+        assert rule["rule_action"] == "deny"
+        assert rule["from_port"] == 22
+        assert rule["to_port"] == 22
+        assert rule["cidr_block"] == "0.0.0.0/0"
+
+
+def test_vpc_endpoints_include_session_manager_and_s3(resources):
+    s3 = values(resources, "aws_vpc_endpoint.s3")
+    assert s3["vpc_endpoint_type"] == "Gateway"
+    assert s3["service_name"].endswith(".s3")
+    for service in ("ssm", "ssmmessages", "ec2messages", "logs"):
+        ep = values(resources, f'aws_vpc_endpoint.interface["{service}"]')
+        assert ep["vpc_endpoint_type"] == "Interface"
+        assert ep["private_dns_enabled"] is True
+        assert ep["service_name"].endswith(f".{service}")
+
+
+def test_launch_template_requires_imdsv2_encrypts_ebs_and_has_no_ssh_key(resources):
+    lt = values(resources, "aws_launch_template.workload")
+    meta = lt["metadata_options"][0]
+    assert meta["http_endpoint"] == "enabled"
+    assert meta["http_tokens"] == "required"
+    assert meta["http_put_response_hop_limit"] == 1
+    ebs = lt["block_device_mappings"][0]["ebs"][0]
+    assert ebs["encrypted"] == "true" or ebs["encrypted"] is True
+    assert ebs["volume_type"] == "gp3"
+    nic = lt["network_interfaces"][0]
+    assert nic["associate_public_ip_address"] == "false" or nic["associate_public_ip_address"] is False
+    assert not lt.get("key_name")
+    assert "aws_instance.workload" not in resources
+
+
+def test_waf_has_managed_common_rules_and_rate_limit(resources):
+    acl = values(resources, "aws_wafv2_web_acl.edge")
+    assert acl["scope"] == "REGIONAL"
+    rules = {r["name"]: r for r in acl["rule"]}
+    assert "AWSManagedRulesKnownBadInputsRuleSet" in rules
+    assert "AWSManagedRulesCommonRuleSet" in rules
+    assert "RateLimitByIP" in rules
+    bad_inputs = rules["AWSManagedRulesKnownBadInputsRuleSet"]["statement"][0][
+        "managed_rule_group_statement"
+    ][0]
+    assert bad_inputs["name"] == "AWSManagedRulesKnownBadInputsRuleSet"
+    assert bad_inputs["vendor_name"] == "AWS"
+    rate = rules["RateLimitByIP"]["statement"][0]["rate_based_statement"][0]
+    assert rate["limit"] == 1000
+    assert rate["aggregate_key_type"] == "IP"
+    managed = rules["AWSManagedRulesCommonRuleSet"]["statement"][0]["managed_rule_group_statement"][0]
+    assert managed["name"] == "AWSManagedRulesCommonRuleSet"
+    assert managed["vendor_name"] == "AWS"
+
+
+def test_inspector_enables_ec2_ecr_and_lambda(resources):
+    enabler = values(resources, "aws_inspector2_enabler.this[0]")
+    assert set(enabler["account_ids"]) == {"111122223333"}
+    assert set(enabler["resource_types"]) == {"EC2", "ECR", "LAMBDA"}
+
+
+def test_domain3_policies_match_templates(resources):
+    from scs_lab.render import render_policy
+
+    s3_policy = values(resources, "aws_vpc_endpoint.s3")["policy"]
+    assert json.loads(s3_policy) == render_policy("vpce-s3")
+    ssm_policy = values(resources, 'aws_vpc_endpoint.interface["ssm"]')["policy"]
+    assert json.loads(ssm_policy) == render_policy("vpce-ssm")
+    instance = values(resources, "aws_iam_policy.ssm_instance")["policy"]
+    assert json.loads(instance) == render_policy("iam-ssm-instance")
+    operator = values(resources, "aws_iam_policy.ssm_operator")["policy"]
+    assert json.loads(operator) == render_policy("iam-ssm-operator")

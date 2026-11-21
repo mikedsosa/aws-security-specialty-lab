@@ -54,7 +54,7 @@ resource "aws_iam_role_policy" "remediation" {
 }
 
 resource "aws_lambda_function" "remediation" {
-  #checkov:skip=CKV_AWS_117:The function only calls the S3 control plane; a VPC adds NAT or endpoint cost without reducing exposure here.
+  #checkov:skip=CKV_AWS_117:The function only calls the S3 control plane. Putting it in the study VPC would add endpoint or NAT cost without reducing that API exposure.
   #checkov:skip=CKV_AWS_272:Code signing needs AWS Signer and a signing profile; out of scope for an offline lab.
   #checkov:skip=CKV_AWS_173:Environment variables hold bucket names and a dry-run flag, not secrets.
   function_name                  = local.remediation_function_name

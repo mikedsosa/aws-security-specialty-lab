@@ -2,7 +2,7 @@
 
 An offline-first, hands-on lab for the AWS Certified Security - Specialty exam (SCS-C03). It has
 Terraform for a small organization-level security setup, a Lambda auto-remediation with tests, a
-policy checker for "predict the decision" drills, eight exercises with expected outcomes, and one
+policy checker for "predict the decision" drills, fifteen exercises with expected outcomes, and one
 incident-response runbook.
 
 Nothing here has been deployed. No command in this repository used real AWS credentials, created cloud
@@ -35,7 +35,10 @@ lists what is not covered.
 | Permission boundary plus a role-creator role that can create `/app/` roles only with that boundary and cannot remove or edit it | `terraform/identity.tf` | 4 |
 | EventBridge (CloudTrail BPA changes and the GuardDuty finding) to an idempotent Lambda that turns bucket BPA back on, with DLQ, retries and reserved concurrency | `terraform/remediation.tf`, `lambda/remediate_s3_bpa/handler.py` | 2, 6 |
 | Incident runbook: leaked access key used to make a bucket public | [docs/runbook-s3-public-exposure.md](docs/runbook-s3-public-exposure.md) | 2 |
-| Eight exercises with expected outcomes | [docs/exercises.md](docs/exercises.md) | all |
+| Isolated study VPC: security groups, network ACLs, VPC flow logs, S3 gateway and SSM/Logs interface endpoints with endpoint policies | `terraform/network.tf` | 3, 5 |
+| Launch template requiring IMDSv2, EBS encryption with a CMK, Session Manager instance profile and operator role, no SSH key; Inspector v2 enabler | `terraform/compute.tf` | 3, 5 |
+| Regional WAF web ACL (Core Rule Set, Known Bad Inputs, rate limit). Not associated with a resource. Shield Standard is documented only | `terraform/edge.tf` | 3 |
+| Fifteen exercises with expected outcomes | [docs/exercises.md](docs/exercises.md) | all |
 
 Policies live as JSON templates loaded with `templatefile()`. The Python tests render the same
 templates, and a plan-based test checks that Terraform's rendered policy equals what the tests check.
@@ -66,7 +69,7 @@ Do not run `terraform apply`. See Limitations.
 
 ## Results
 
-Run on November 17, 2026 on a Linux box with Python 3.13.5, Terraform 1.17.1, AWS provider 5.100.0,
+Run on November 21, 2026 on a Linux box with Python 3.13.5, Terraform 1.17.1, AWS provider 5.100.0,
 archive provider 2.7.1, TFLint 0.66.0 with the AWS ruleset 0.40.0, checkov 3.1.47, parliament 1.6.4,
 moto 5.2.5, boto3 1.44.4, pytest 9.2.0 and ruff 0.17.5.
 
@@ -77,27 +80,30 @@ moto 5.2.5, boto3 1.44.4, pytest 9.2.0 and ruff 0.17.5.
 | `terraform -chdir=terraform fmt -recursive -check` | exit 0 |
 | `terraform -chdir=terraform validate` | Success. The configuration is valid. |
 | `tflint --format compact` (in `terraform/`) | no issues, exit 0 |
-| `python scripts/lint_policies.py` (parliament) | 13 findings, all accepted below, 0 unexpected |
-| `pytest -q` before the plan exists | 86 passed, 19 skipped (plan tests) |
-| `./scripts/offline-plan.sh` | Plan: 70 to add, 0 to change, 0 to destroy |
-| `pytest -q` after the plan | 105 passed |
-| `checkov -d terraform --framework terraform` | Passed 165, Failed 0, Skipped 12 |
-| `checkov -f build/plan.json --framework terraform_plan` | Passed 145, Failed 17, Skipped 0 |
+| `python scripts/lint_policies.py` (parliament) | 23 findings, all accepted below, 0 unexpected |
+| `pytest -q` before the plan exists | 97 passed, 27 skipped (plan tests) |
+| `./scripts/offline-plan.sh` | Plan: 140 to add, 0 to change, 0 to destroy |
+| `pytest -q` after the plan | 124 passed |
+| `checkov -d terraform --framework terraform` | Passed 339, Failed 0, Skipped 12 |
+| `checkov -f build/plan.json --framework terraform_plan` | Passed 323, Failed 22, Skipped 0 |
 
 What the tests cover: 17 remediation tests with moto S3 (restore after delete, partial put, GuardDuty
 finding, loop guard, exemption list, dry run, failed API calls, malformed events, missing bucket); 4
-EventBridge pattern tests through moto's matcher; 65 policy tests (rendering, Organizations size limits
+EventBridge pattern tests through moto's matcher; 76 policy tests (rendering, Organizations size limits
 of 10,240 characters for SCPs and 5,120 for RCPs, placeholder-only account IDs, and request decisions for
-every policy); 19 tests against the offline plan JSON.
+every policy, including the Domain 3 endpoint and Session Manager policies); 27 tests against the offline
+plan JSON.
 
-Accepted parliament findings: `RESOURCE_STAR` 11 times on the three KMS key policies (in a key policy,
-`"Resource": "*"` means this key), `MISMATCHED_TYPE_BUT_USABLE` once on the role creator
-(`StringEquals` on the ARN-typed `iam:PermissionsBoundary`, the form AWS's own boundary delegation example
-uses), and `MISMATCHED_TYPE` once on the lab-logs key policy (`ArnEquals` on
+Accepted parliament findings: 23 findings, 0 unexpected. `RESOURCE_STAR` on the five KMS key policies
+(in a key policy, `"Resource": "*"` means this key); `MISMATCHED_TYPE_BUT_USABLE` once on the role
+creator (`StringEquals` on the ARN-typed `iam:PermissionsBoundary`, the form AWS's own boundary
+delegation example uses); `MISMATCHED_TYPE` on the lab-logs and infra-logs key policies (`ArnEquals` on
 `kms:EncryptionContext:aws:logs:arn` with a log group ARN; parliament types the slash in the log group
-name as String. This is the condition shape in AWS's CloudWatch Logs key policy example). The count dropped
-from 18 because the lab-logs key policies no longer grant the S3 logging service KMS access after the
-access-log destinations moved to SSE-S3.
+name as String. This is the condition shape in AWS's CloudWatch Logs key policy example);
+`RESOURCE_STAR` on the SSM instance role (the same Resource `*` shape as AmazonSSMManagedInstanceCore);
+`RESOURCE_STAR` on the S3 gateway endpoint policy (access is limited by organization ID; this lab has
+no workload bucket to name); and `RESOURCE_STAR` on the Systems Manager interface endpoint policy
+(the listed SSM, ssmmessages, and ec2messages APIs are not bucket-scoped).
 
 Directory-mode checkov findings that were open on the first draft are now fixed:
 
@@ -118,19 +124,24 @@ on the replica bucket (plan mode treats the destination bucket as connected to t
 configuration and passes it), and CKV_AWS_18 on the access-log destinations (plan mode did not flag
 them).
 
-The 17 plan-mode failures, with why they were not changed:
+The 22 plan-mode failures, with why they were not changed:
 
 | Check | Resource | Why it is documented, not changed |
 | --- | --- | --- |
 | CKV2_AWS_10 | `aws_cloudtrail.org` | CloudWatch Logs delivery is a paid add-on; EventBridge already receives management events for the remediation path. |
 | CKV_AWS_252 | `aws_cloudtrail.org` | No SNS topic; delivery notifications are out of scope for this lab. |
-| CKV_AWS_117 | `aws_lambda_function.remediation` | The function only calls the S3 control plane. A VPC would add NAT or endpoint cost and is Domain 3 content, which is scheduled later. |
+| CKV_AWS_117 | `aws_lambda_function.remediation` | The function only calls the S3 control plane. Putting it in the study VPC would add endpoint or NAT cost without reducing that API exposure. |
 | CKV_AWS_272 | `aws_lambda_function.remediation` | Code signing needs AWS Signer and a signing profile; out of scope for an offline lab. |
 | CKV_AWS_144 | `aws_s3_bucket.access_logs`, `.replica_access_logs` | These are access-log destinations. A further replica would be another copy. The same skip is on the trail replica bucket in directory mode. |
 | CKV_AWS_145 | `aws_s3_bucket.access_logs`, `.replica_access_logs` | AWS requires a server access log destination bucket to use SSE-S3, not SSE-KMS. Directory mode skips this check on those buckets for the same reason. |
 | CKV_AWS_61 | `aws_iam_role.role_creator` | The trust policy allows the same-account root principal only when MFA is present. The check flags any account-root principal and does not read the MFA condition. Directory mode sees a data-source reference, not the rendered ARN, and passes. The lab keeps the stated trust design. |
 | CKV_AWS_93 | `aws_s3_bucket_policy.trail`, `.access_logs`, `.trail_replica`, `.replica_access_logs` | `DenyLogDeletion` denies only `s3:DeleteObject` and `s3:DeleteObjectVersion` to `"Principal": "*"`, so object writes, reads and bucket policy updates still work. The check treats any unconditional Deny to `*` as a lockout. Directory mode does not parse `templatefile()` and passes. |
 | CKV_AWS_300 | the four lifecycle configurations | Each rule sets `abort_incomplete_multipart_upload` to 7 days and uses an empty `filter {}` so the rule applies to all objects (the AWS provider requires `filter` or `prefix`). In plan JSON that empty filter becomes a truthy object with null/empty keys, and the check then skips the rule and fails. Directory mode sees `filter {}` as an empty object and passes. Removing the filter produces a provider warning that will become an error. |
+| CKV_AWS_61 | `aws_iam_role.ssm_operator` | Same design as `role_creator`: same-account root principal only when MFA is present. The check flags any account-root principal and does not read the MFA condition. Directory mode sees a data-source reference and passes. |
+| CKV_AWS_355, CKV_AWS_290, CKV_AWS_288 | `aws_iam_policy.ssm_instance` | The instance role follows the AmazonSSMManagedInstanceCore action set, which uses `Resource: "*"`. Directory mode does not parse `templatefile()` and passes. Tightening documents and parameter ARNs would go beyond what this lab verified against a live agent. |
+| CKV_AWS_355 | `aws_iam_policy.ssm_operator` | `ssm:DescribeInstanceInformation`, `ssm:DescribeSessions`, and `ssm:GetConnectionStatus` require `Resource: "*"`. Directory mode does not parse `templatefile()` and passes. |
+
+The 17 plan-mode failures from November 17, 2026 are unchanged. The five new failures above appeared when Domain 3 IAM policies and the operator trust policy were added.
 
 ## Limitations
 
@@ -151,7 +162,14 @@ The 17 plan-mode failures, with why they were not changed:
 - parliament's bundled action database can lag new AWS actions.
 - GuardDuty, Security Hub CSPM, CloudTrail data events, KMS and Lambda are billed services once
   deployed. This lab did not price them.
-- Domain 3 coverage is thin; see the domain map.
+- Domain 3 now has a study VPC, Session Manager access path, IMDSv2 launch template, EBS CMK,
+  Inspector v2 enabler, and an unassociated WAF web ACL. Still not covered: Network Firewall,
+  CloudFront, Shield Advanced, Image Builder, Patch Manager runs, GenAI guardrails, hybrid
+  connectivity, and Verified Access. The WAF ACL would not inspect traffic unless associated. No
+  instance is created, and Inspector was not run, so there are no scan findings. See the domain map.
+- The S3 gateway path cannot look up the regional S3 managed prefix list offline, so the app
+  security group and network ACL allow HTTPS (and ephemeral return ports, excluding 3389) to
+  0.0.0.0/0 as a stand-in. A live account should use the prefix list instead.
 - S3 server access log destination buckets use SSE-S3 (AES256) and do not log to themselves, as AWS
   requires and recommends. Directory-mode checkov flags those destinations for missing access logging
   (CKV_AWS_18) and for not using KMS encryption (CKV_AWS_145); both are skipped as a deliberate

@@ -37,6 +37,24 @@ ACCEPTED = {
         "iam-role-creator",
         "MISMATCHED_TYPE_BUT_USABLE",
     ): "StringEquals on an ARN-typed key, as in AWS examples",
+    ("kms-ebs-key-policy", "RESOURCE_STAR"): "key policy Resource * means this key",
+    ("kms-infra-logs-key-policy", "RESOURCE_STAR"): "key policy Resource * means this key",
+    (
+        "kms-infra-logs-key-policy",
+        "MISMATCHED_TYPE",
+    ): "ArnEquals on a log group ARN; parliament types the slash in the name as String",
+    (
+        "iam-ssm-instance",
+        "RESOURCE_STAR",
+    ): "matches the AWS managed AmazonSSMManagedInstanceCore action set, which uses Resource *",
+    (
+        "vpce-s3",
+        "RESOURCE_STAR",
+    ): "S3 gateway endpoint policy limits access by organization ID; this lab has no workload bucket to name",
+    (
+        "vpce-ssm",
+        "RESOURCE_STAR",
+    ): "SSM, ssmmessages, and ec2messages APIs are not bucket-scoped; the policy lists only the needed actions",
 }
 
 

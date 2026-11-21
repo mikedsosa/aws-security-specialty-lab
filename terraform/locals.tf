@@ -23,4 +23,23 @@ locals {
   replication_role_arn            = "arn:${local.partition}:iam::${var.management_account_id}:role/${local.replication_role_name}"
   remediation_log_group_name      = "/aws/lambda/${local.remediation_function_name}"
   remediation_log_group_arn       = "arn:${local.partition}:logs:${var.region}:${var.management_account_id}:log-group:${local.remediation_log_group_name}"
+
+  # Two Availability Zones, named directly so the plan does not look up AZs.
+  workload_azs = ["${var.region}a", "${var.region}b"]
+
+  public_subnet_cidrs   = [cidrsubnet(var.workload_vpc_cidr, 8, 0), cidrsubnet(var.workload_vpc_cidr, 8, 1)]
+  app_subnet_cidrs      = [cidrsubnet(var.workload_vpc_cidr, 8, 10), cidrsubnet(var.workload_vpc_cidr, 8, 11)]
+  endpoint_subnet_cidrs = [cidrsubnet(var.workload_vpc_cidr, 8, 20), cidrsubnet(var.workload_vpc_cidr, 8, 21)]
+
+  ssm_instance_role_name = "${var.name_prefix}-ssm-instance"
+  ssm_instance_role_arn  = "arn:${local.partition}:iam::${var.management_account_id}:role/${local.ssm_instance_role_name}"
+  ssm_operator_role_name = "${var.name_prefix}-ssm-operator"
+  ssm_operator_role_arn  = "arn:${local.partition}:iam::${var.management_account_id}:role/${local.ssm_operator_role_name}"
+
+  flow_logs_log_group_name = "/aws/vpc/${var.name_prefix}-flow-logs"
+  flow_logs_log_group_arn  = "arn:${local.partition}:logs:${var.region}:${var.management_account_id}:log-group:${local.flow_logs_log_group_name}"
+  waf_log_group_name       = "aws-waf-logs-${var.name_prefix}"
+  waf_log_group_arn        = "arn:${local.partition}:logs:${var.region}:${var.management_account_id}:log-group:${local.waf_log_group_name}"
+
+  interface_endpoint_services = ["ssm", "ssmmessages", "ec2messages", "logs"]
 }

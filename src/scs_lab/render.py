@@ -42,6 +42,10 @@ EXAMPLE_REPLICA_ACCESS_LOGS_BUCKET = "scs-lab-org-trail-replica-access-logs-1111
 EXAMPLE_REPLICATION_ROLE = "arn:aws:iam::111122223333:role/scs-lab-s3-replication"
 EXAMPLE_LOG_GROUP_ARN = "arn:aws:logs:us-east-1:111122223333:log-group:/aws/lambda/scs-lab-remediate-s3-bpa"
 EXAMPLE_CLOUDTRAIL_KEY_ARN = "arn:aws:kms:us-east-1:111122223333:key/00000000-0000-0000-0000-000000000001"
+EXAMPLE_SSM_INSTANCE_ROLE = "arn:aws:iam::111122223333:role/scs-lab-ssm-instance"
+EXAMPLE_SSM_OPERATOR_ROLE = "arn:aws:iam::111122223333:role/scs-lab-ssm-operator"
+EXAMPLE_FLOW_LOGS_GROUP_ARN = "arn:aws:logs:us-east-1:111122223333:log-group:/aws/vpc/scs-lab-flow-logs"
+EXAMPLE_WAF_LOG_GROUP_ARN = "arn:aws:logs:us-east-1:111122223333:log-group:aws-waf-logs-scs-lab"
 EXAMPLE_REPLICA_KEY_ARN = "arn:aws:kms:us-west-2:111122223333:key/00000000-0000-0000-0000-000000000002"
 
 TEMPLATE_VARS: dict[str, dict[str, Any]] = {
@@ -127,6 +131,38 @@ TEMPLATE_VARS: dict[str, dict[str, Any]] = {
         "region": EXAMPLE["region"],
         "function_name": "scs-lab-remediate-s3-bpa",
         "dlq_arn": "arn:aws:sqs:us-east-1:111122223333:scs-lab-remediation-dlq",
+    },
+    "vpce-s3": {"organization_id": EXAMPLE["organization_id"]},
+    "vpce-ssm": {
+        "instance_role_arn": EXAMPLE_SSM_INSTANCE_ROLE,
+        "operator_role_arn": EXAMPLE_SSM_OPERATOR_ROLE,
+    },
+    "iam-ssm-instance": {},
+    "iam-ssm-operator": {
+        "region": EXAMPLE["region"],
+        "account_id": EXAMPLE["management_account_id"],
+    },
+    "iam-vpc-flow-logs": {"log_group_arn": EXAMPLE_FLOW_LOGS_GROUP_ARN},
+    "kms-infra-logs-key-policy": {
+        "key_admin_arns": [
+            "arn:aws:iam::111122223333:role/KeyAdmin",
+            "arn:aws:iam::111122223333:role/TerraformDeployer",
+        ],
+        "region": EXAMPLE["region"],
+        "management_account_id": EXAMPLE["management_account_id"],
+        "log_group_arns": [EXAMPLE_FLOW_LOGS_GROUP_ARN, EXAMPLE_WAF_LOG_GROUP_ARN],
+    },
+    "kms-ebs-key-policy": {
+        "key_admin_arns": [
+            "arn:aws:iam::111122223333:role/KeyAdmin",
+            "arn:aws:iam::111122223333:role/TerraformDeployer",
+        ],
+        "ebs_user_arns": [
+            "arn:aws:iam::111122223333:role/KeyAdmin",
+            "arn:aws:iam::111122223333:role/TerraformDeployer",
+            EXAMPLE_SSM_INSTANCE_ROLE,
+        ],
+        "region": EXAMPLE["region"],
     },
 }
 

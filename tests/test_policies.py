@@ -546,3 +546,62 @@ def test_action_matching_is_case_insensitive():
 def test_rendered_output_round_trips_as_json():
     for name in TEMPLATE_VARS:
         assert json.loads(json.dumps(render_policy(name))) == render_policy(name)
+
+
+# --- Domain 3 endpoint and Session Manager policies ---------------------------------
+
+
+def test_s3_gateway_endpoint_requires_org_id():
+    allowed = decide(
+        "vpce-s3",
+        "s3:GetObject",
+        resource="arn:aws:s3:::any-bucket/object",
+        principal_arn="arn:aws:iam::111122223333:role/scs-lab-ssm-instance",
+        context={"aws:PrincipalOrgID": "o-exampleorg1"},
+    )
+    denied = decide(
+        "vpce-s3",
+        "s3:GetObject",
+        resource="arn:aws:s3:::any-bucket/object",
+        principal_arn="arn:aws:iam::111122223333:role/scs-lab-ssm-instance",
+        context={"aws:PrincipalOrgID": "o-otherorgxxx"},
+    )
+    missing = decide(
+        "vpce-s3",
+        "s3:GetObject",
+        resource="arn:aws:s3:::any-bucket/object",
+        principal_arn="arn:aws:iam::111122223333:role/scs-lab-ssm-instance",
+    )
+    assert allowed.decision == "allow"
+    assert denied.decision == "no_match"
+    assert missing.decision == "no_match"
+
+
+def test_ssm_endpoint_allows_only_named_roles():
+    instance = "arn:aws:iam::111122223333:role/scs-lab-ssm-instance"
+    operator = "arn:aws:iam::111122223333:role/scs-lab-ssm-operator"
+    other = "arn:aws:iam::111122223333:role/Developer"
+    assert decide("vpce-ssm", "ssm:UpdateInstanceInformation", principal_arn=instance).decision == "allow"
+    assert decide("vpce-ssm", "ssmmessages:CreateDataChannel", principal_arn=instance).decision == "allow"
+    assert decide("vpce-ssm", "ssm:StartSession", principal_arn=operator).decision == "allow"
+    assert decide("vpce-ssm", "ssm:StartSession", principal_arn=other).decision == "no_match"
+
+
+def test_ssm_operator_can_start_but_not_send_command():
+    instance = "arn:aws:ec2:us-east-1:111122223333:instance/i-0123456789abcdef0"
+    start = decide("iam-ssm-operator", "ssm:StartSession", resource=instance)
+    send = decide("iam-ssm-operator", "ssm:SendCommand", resource=instance)
+    terminate = decide(
+        "iam-ssm-operator",
+        "ssm:TerminateSession",
+        resource="arn:aws:ssm:us-east-1:111122223333:session/session-id",
+    )
+    assert start.decision == "allow"
+    assert send.decision == "no_match"
+    assert terminate.decision == "allow"
+
+
+def test_ssm_instance_role_has_channel_permissions_not_start_session():
+    assert decide("iam-ssm-instance", "ssmmessages:CreateControlChannel").decision == "allow"
+    assert decide("iam-ssm-instance", "ssm:UpdateInstanceInformation").decision == "allow"
+    assert decide("iam-ssm-instance", "ssm:StartSession").decision == "no_match"
