@@ -133,6 +133,7 @@ TEMPLATE_VARS: dict[str, dict[str, Any]] = {
         "dlq_arn": "arn:aws:sqs:us-east-1:111122223333:scs-lab-remediation-dlq",
     },
     "vpce-s3": {"organization_id": EXAMPLE["organization_id"]},
+    "vpce-logs": {"organization_id": EXAMPLE["organization_id"]},
     "vpce-ssm": {
         "instance_role_arn": EXAMPLE_SSM_INSTANCE_ROLE,
         "operator_role_arn": EXAMPLE_SSM_OPERATOR_ROLE,

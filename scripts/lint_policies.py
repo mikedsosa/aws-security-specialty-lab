@@ -52,6 +52,10 @@ ACCEPTED = {
         "RESOURCE_STAR",
     ): "S3 gateway endpoint policy limits access by organization ID; this lab has no workload bucket to name",
     (
+        "vpce-logs",
+        "RESOURCE_STAR",
+    ): "CloudWatch Logs endpoint policy limits access by organization ID; log group names are not fixed for later session logging",
+    (
         "vpce-ssm",
         "RESOURCE_STAR",
     ): "SSM, ssmmessages, and ec2messages APIs are not bucket-scoped; the policy lists only the needed actions",

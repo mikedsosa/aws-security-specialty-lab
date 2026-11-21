@@ -220,11 +220,30 @@ def test_vpc_endpoints_include_session_manager_and_s3(resources):
     s3 = values(resources, "aws_vpc_endpoint.s3")
     assert s3["vpc_endpoint_type"] == "Gateway"
     assert s3["service_name"].endswith(".s3")
-    for service in ("ssm", "ssmmessages", "ec2messages", "logs"):
+    for service in ("ssm", "ssmmessages", "ec2messages"):
         ep = values(resources, f'aws_vpc_endpoint.interface["{service}"]')
         assert ep["vpc_endpoint_type"] == "Interface"
         assert ep["private_dns_enabled"] is True
         assert ep["service_name"].endswith(f".{service}")
+    logs = values(resources, "aws_vpc_endpoint.logs")
+    assert logs["vpc_endpoint_type"] == "Interface"
+    assert logs["private_dns_enabled"] is True
+    assert logs["service_name"].endswith(".logs")
+
+
+def test_app_and_endpoint_security_groups_have_no_allow_all_egress_rule(resources):
+    """Explicit egress is HTTPS only. The provider revokes AWS's default allow-all
+    egress on create; that revoke is not visible in an offline plan."""
+    for address, rule in resources.items():
+        if not address.startswith("aws_vpc_security_group_egress_rule."):
+            continue
+        v = rule["values"]
+        protocol = str(v.get("ip_protocol"))
+        cidr = v.get("cidr_ipv4")
+        assert not (protocol in {"-1", "-1.0"} and cidr == "0.0.0.0/0"), address
+        if v.get("from_port") is not None:
+            assert v["from_port"] == 443, address
+            assert v["to_port"] == 443, address
 
 
 def test_launch_template_requires_imdsv2_encrypts_ebs_and_has_no_ssh_key(resources):
@@ -275,6 +294,8 @@ def test_domain3_policies_match_templates(resources):
     assert json.loads(s3_policy) == render_policy("vpce-s3")
     ssm_policy = values(resources, 'aws_vpc_endpoint.interface["ssm"]')["policy"]
     assert json.loads(ssm_policy) == render_policy("vpce-ssm")
+    logs_policy = values(resources, "aws_vpc_endpoint.logs")["policy"]
+    assert json.loads(logs_policy) == render_policy("vpce-logs")
     instance = values(resources, "aws_iam_policy.ssm_instance")["policy"]
     assert json.loads(instance) == render_policy("iam-ssm-instance")
     operator = values(resources, "aws_iam_policy.ssm_operator")["policy"]

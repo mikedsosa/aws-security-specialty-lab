@@ -41,5 +41,5 @@ locals {
   waf_log_group_name       = "aws-waf-logs-${var.name_prefix}"
   waf_log_group_arn        = "arn:${local.partition}:logs:${var.region}:${var.management_account_id}:log-group:${local.waf_log_group_name}"
 
-  interface_endpoint_services = ["ssm", "ssmmessages", "ec2messages", "logs"]
+  ssm_interface_endpoint_services = ["ssm", "ssmmessages", "ec2messages"]
 }

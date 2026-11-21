@@ -6,10 +6,18 @@
       "Effect": "Allow",
       "Action": [
         "ssm:DescribeInstanceInformation",
-        "ssm:DescribeSessions",
-        "ssm:GetConnectionStatus"
+        "ssm:DescribeSessions"
       ],
       "Resource": "*"
+    },
+    {
+      "Sid": "GetConnectionStatusOnInstances",
+      "Effect": "Allow",
+      "Action": "ssm:GetConnectionStatus",
+      "Resource": [
+        "arn:aws:ec2:${region}:${account_id}:instance/*",
+        "arn:aws:ssm:${region}:${account_id}:managed-instance/*"
+      ]
     },
     {
       "Sid": "StartSessionOnInstances",

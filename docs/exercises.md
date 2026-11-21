@@ -156,7 +156,7 @@ section. Optionally run:
 .venv/bin/checkov -f build/plan.json --framework terraform_plan --compact
 ```
 
-Expected: `Passed checks: 323, Failed checks: 22, Skipped checks: 0` after `./scripts/offline-plan.sh`.
+Expected: `Passed checks: 324, Failed checks: 21, Skipped checks: 0` after `./scripts/offline-plan.sh`.
 Plan mode ignores the inline skips. Pick one of those 22 and decide whether you agree with the README's
 reason for leaving it.
 
@@ -177,10 +177,11 @@ Questions:
 
 - Security groups are stateful and network ACLs are stateless (VPC User Guide, "Control traffic to
   your AWS resources using security groups" and "Control subnet traffic with network access control
-  lists"). Why does the app NACL allow inbound TCP 1024-3388 and 3390-65535 from the endpoint
-  subnets if the app security group has no inbound rules? (Return traffic for outbound HTTPS to the
-  interface endpoints must be allowed at the NACL, because the NACL does not track the connection.
-  The security group does, so it does not need a matching inbound rule.)
+  lists"). Why does the app NACL allow inbound TCP 1024-65535 from the endpoint subnets if the app
+  security group has no inbound rules? (Return traffic for outbound HTTPS to the interface endpoints
+  must be allowed at the NACL, because the NACL does not track the connection. The security group
+  does, so it does not need a matching inbound rule.) The split ranges 1024-3388 and 3390-65535 are
+  only on the S3 gateway stand-in rules from 0.0.0.0/0, so that stand-in does not allow TCP 3389.
 - Network ACL rules are evaluated when traffic enters or leaves a subnet, not for traffic that stays
   inside one subnet (same NACL page). Why are the interface endpoints in their own subnets?
 
@@ -272,7 +273,9 @@ Expected: `allow` (StartSessionOnInstances), `no_match`, `no_match`, `allow` (Ss
 Question: the isolated app subnet has no NAT gateway. What three things in this lab still have to
 be true for Session Manager to work without internet access? (Interface endpoints for Systems
 Manager, HTTPS from the app security group to those endpoints, and the instance profile
-permissions. The `logs` endpoint would also be needed if you added CloudWatch session logging later.)
+permissions.) This lab already has a `logs` interface endpoint with a CloudWatch Logs policy, but
+that is not enough for Session Manager CloudWatch logging: the instance role still has no logs
+permissions, and no Session Manager logging preferences are configured.
 
 ## 14. IMDSv2 and EBS encryption (Skills 3.2.1, 5.2.1)
 

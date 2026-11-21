@@ -36,13 +36,29 @@
         "kms:Decrypt",
         "kms:ReEncrypt*",
         "kms:GenerateDataKey*",
-        "kms:DescribeKey",
-        "kms:CreateGrant"
+        "kms:DescribeKey"
       ],
       "Resource": "*",
       "Condition": {
         "StringEquals": {
           "kms:ViaService": "ec2.${region}.amazonaws.com"
+        }
+      }
+    },
+    {
+      "Sid": "AllowEbsCreateGrant",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": ${jsonencode(ebs_user_arns)}
+      },
+      "Action": "kms:CreateGrant",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "kms:ViaService": "ec2.${region}.amazonaws.com"
+        },
+        "Bool": {
+          "kms:GrantIsForAWSResource": "true"
         }
       }
     }

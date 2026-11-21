@@ -136,10 +136,16 @@ resource "aws_route_table_association" "endpoint" {
 }
 
 # --- Security groups -----------------------------------------------------------
+# AWS adds an ALLOW ALL egress rule when it creates a VPC security group. The
+# AWS provider 5.100.0 revokes that default IPv4 (and IPv6, if present) rule
+# during create, then keeps only rules we define. This lab uses standalone
+# aws_vpc_security_group_*_rule resources (no inline ingress/egress blocks, which
+# would conflict). The offline plan cannot show the revoke (egress is unknown
+# until apply). See the provider aws_security_group docs, "NOTE on Egress rules."
 
 resource "aws_security_group" "endpoints" {
   name        = "${var.name_prefix}-vpce"
-  description = "HTTPS from the app security group to interface VPC endpoints."
+  description = "Inbound HTTPS from the app security group to interface VPC endpoints. No egress rules; return traffic is stateful."
   vpc_id      = aws_vpc.workload.id
 
   tags = {
@@ -401,7 +407,7 @@ resource "aws_vpc_endpoint" "s3" {
 }
 
 resource "aws_vpc_endpoint" "interface" {
-  for_each = toset(local.interface_endpoint_services)
+  for_each = toset(local.ssm_interface_endpoint_services)
 
   vpc_id              = aws_vpc.workload.id
   service_name        = "com.amazonaws.${var.region}.${each.value}"
@@ -416,6 +422,24 @@ resource "aws_vpc_endpoint" "interface" {
 
   tags = {
     Name = "${var.name_prefix}-${each.value}"
+  }
+}
+
+# CloudWatch Logs honors endpoint policies. The SSM policy must not be attached
+# here, because it would implicitly deny logs:* (CloudWatch Logs VPC endpoint docs).
+resource "aws_vpc_endpoint" "logs" {
+  vpc_id              = aws_vpc.workload.id
+  service_name        = "com.amazonaws.${var.region}.logs"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = [for s in aws_subnet.endpoint : s.id]
+  security_group_ids  = [aws_security_group.endpoints.id]
+  private_dns_enabled = true
+  policy = templatefile("${path.module}/policies/vpce-logs.json.tftpl", {
+    organization_id = var.organization_id
+  })
+
+  tags = {
+    Name = "${var.name_prefix}-logs"
   }
 }
 

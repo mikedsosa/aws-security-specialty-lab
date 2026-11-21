@@ -605,3 +605,27 @@ def test_ssm_instance_role_has_channel_permissions_not_start_session():
     assert decide("iam-ssm-instance", "ssmmessages:CreateControlChannel").decision == "allow"
     assert decide("iam-ssm-instance", "ssm:UpdateInstanceInformation").decision == "allow"
     assert decide("iam-ssm-instance", "ssm:StartSession").decision == "no_match"
+
+
+def test_logs_endpoint_allows_org_logs_apis():
+    allowed = decide(
+        "vpce-logs",
+        "logs:PutLogEvents",
+        principal_arn="arn:aws:iam::111122223333:role/scs-lab-ssm-instance",
+        context={"aws:PrincipalOrgID": "o-exampleorg1"},
+    )
+    denied = decide(
+        "vpce-logs",
+        "logs:PutLogEvents",
+        principal_arn="arn:aws:iam::111122223333:role/scs-lab-ssm-instance",
+        context={"aws:PrincipalOrgID": "o-otherorgxxx"},
+    )
+    ssm_through_logs = decide(
+        "vpce-logs",
+        "ssm:UpdateInstanceInformation",
+        principal_arn="arn:aws:iam::111122223333:role/scs-lab-ssm-instance",
+        context={"aws:PrincipalOrgID": "o-exampleorg1"},
+    )
+    assert allowed.decision == "allow"
+    assert denied.decision == "no_match"
+    assert ssm_through_logs.decision == "no_match"

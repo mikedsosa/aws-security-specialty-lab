@@ -80,21 +80,22 @@ moto 5.2.5, boto3 1.44.4, pytest 9.2.0 and ruff 0.17.5.
 | `terraform -chdir=terraform fmt -recursive -check` | exit 0 |
 | `terraform -chdir=terraform validate` | Success. The configuration is valid. |
 | `tflint --format compact` (in `terraform/`) | no issues, exit 0 |
-| `python scripts/lint_policies.py` (parliament) | 23 findings, all accepted below, 0 unexpected |
-| `pytest -q` before the plan exists | 97 passed, 27 skipped (plan tests) |
+| `python scripts/lint_policies.py` (parliament) | 25 findings, all accepted below, 0 unexpected |
+| `pytest -q` before the plan exists | 99 passed, 28 skipped (plan tests) |
 | `./scripts/offline-plan.sh` | Plan: 140 to add, 0 to change, 0 to destroy |
-| `pytest -q` after the plan | 124 passed |
+| `pytest -q` after the plan | 127 passed |
 | `checkov -d terraform --framework terraform` | Passed 339, Failed 0, Skipped 12 |
-| `checkov -f build/plan.json --framework terraform_plan` | Passed 323, Failed 22, Skipped 0 |
+| `checkov -f build/plan.json --framework terraform_plan` | Passed 324, Failed 21, Skipped 0 |
+| `gitleaks detect` (git history and working tree, 8.21.2 `--no-banner --redact`) | no leaks found |
 
 What the tests cover: 17 remediation tests with moto S3 (restore after delete, partial put, GuardDuty
 finding, loop guard, exemption list, dry run, failed API calls, malformed events, missing bucket); 4
-EventBridge pattern tests through moto's matcher; 76 policy tests (rendering, Organizations size limits
+EventBridge pattern tests through moto's matcher; 78 policy tests (rendering, Organizations size limits
 of 10,240 characters for SCPs and 5,120 for RCPs, placeholder-only account IDs, and request decisions for
-every policy, including the Domain 3 endpoint and Session Manager policies); 27 tests against the offline
+every policy, including the Domain 3 endpoint and Session Manager policies); 28 tests against the offline
 plan JSON.
 
-Accepted parliament findings: 23 findings, 0 unexpected. `RESOURCE_STAR` on the five KMS key policies
+Accepted parliament findings: 25 findings, 0 unexpected. `RESOURCE_STAR` on the five KMS key policies
 (in a key policy, `"Resource": "*"` means this key); `MISMATCHED_TYPE_BUT_USABLE` once on the role
 creator (`StringEquals` on the ARN-typed `iam:PermissionsBoundary`, the form AWS's own boundary
 delegation example uses); `MISMATCHED_TYPE` on the lab-logs and infra-logs key policies (`ArnEquals` on
@@ -103,7 +104,7 @@ name as String. This is the condition shape in AWS's CloudWatch Logs key policy 
 `RESOURCE_STAR` on the SSM instance role (the same Resource `*` shape as AmazonSSMManagedInstanceCore);
 `RESOURCE_STAR` on the S3 gateway endpoint policy (access is limited by organization ID; this lab has
 no workload bucket to name); and `RESOURCE_STAR` on the Systems Manager interface endpoint policy
-(the listed SSM, ssmmessages, and ec2messages APIs are not bucket-scoped).
+(the listed SSM, ssmmessages, and ec2messages APIs are not bucket-scoped); and `RESOURCE_STAR` on the CloudWatch Logs interface endpoint policy (access is limited by organization ID; later session logging does not have a fixed log group name).
 
 Directory-mode checkov findings that were open on the first draft are now fixed:
 
@@ -139,9 +140,8 @@ The 22 plan-mode failures, with why they were not changed:
 | CKV_AWS_300 | the four lifecycle configurations | Each rule sets `abort_incomplete_multipart_upload` to 7 days and uses an empty `filter {}` so the rule applies to all objects (the AWS provider requires `filter` or `prefix`). In plan JSON that empty filter becomes a truthy object with null/empty keys, and the check then skips the rule and fails. Directory mode sees `filter {}` as an empty object and passes. Removing the filter produces a provider warning that will become an error. |
 | CKV_AWS_61 | `aws_iam_role.ssm_operator` | Same design as `role_creator`: same-account root principal only when MFA is present. The check flags any account-root principal and does not read the MFA condition. Directory mode sees a data-source reference and passes. |
 | CKV_AWS_355, CKV_AWS_290, CKV_AWS_288 | `aws_iam_policy.ssm_instance` | The instance role follows the AmazonSSMManagedInstanceCore action set, which uses `Resource: "*"`. Directory mode does not parse `templatefile()` and passes. Tightening documents and parameter ARNs would go beyond what this lab verified against a live agent. |
-| CKV_AWS_355 | `aws_iam_policy.ssm_operator` | `ssm:DescribeInstanceInformation`, `ssm:DescribeSessions`, and `ssm:GetConnectionStatus` require `Resource: "*"`. Directory mode does not parse `templatefile()` and passes. |
 
-The 17 plan-mode failures from November 17, 2026 are unchanged. The five new failures above appeared when Domain 3 IAM policies and the operator trust policy were added.
+The 17 plan-mode failures from November 17, 2026 are unchanged. The four new failures above appeared when Domain 3 IAM policies and the operator trust policy were added. Scoping `ssm:GetConnectionStatus` on the operator policy removed the earlier plan-mode CKV_AWS_355 finding on that policy; `DescribeInstanceInformation` and `DescribeSessions` still use `Resource: "*"`, which the check does not treat as restrictable.
 
 ## Limitations
 
@@ -161,7 +161,12 @@ The 17 plan-mode failures from November 17, 2026 are unchanged. The five new fai
   EventBridge. The sample events are synthetic and shaped after AWS documentation.
 - parliament's bundled action database can lag new AWS actions.
 - GuardDuty, Security Hub CSPM, CloudTrail data events, KMS and Lambda are billed services once
-  deployed. This lab did not price them.
+  deployed. With the Domain 3 defaults, an apply would also bill for Inspector (`enable_inspector`
+  defaults to true and would start EC2, ECR, and Lambda scanning in the account, including any
+  existing images or functions), interface VPC endpoints (Systems Manager, ssmmessages,
+  ec2messages, and CloudWatch Logs, in two Availability Zones), an unassociated WAF web ACL and
+  its managed and rate-based rules, and VPC flow logs to CloudWatch Logs. This lab did not price
+  them, and Inspector was not run, so there are no scan findings.
 - Domain 3 now has a study VPC, Session Manager access path, IMDSv2 launch template, EBS CMK,
   Inspector v2 enabler, and an unassociated WAF web ACL. Still not covered: Network Firewall,
   CloudFront, Shield Advanced, Image Builder, Patch Manager runs, GenAI guardrails, hybrid
