@@ -50,6 +50,11 @@ single-account trail, per-bucket KMS keys, account BPA, MFA roles, and a plan-ev
 does not repeat it. It adds the organization layer (SCP, RCP, organization trail, delegated admins),
 detection services, permission-boundary delegation, auto-remediation, and study material.
 
+A STRIDE threat model and an architecture write-up, both grounded in the Terraform, exercises,
+runbook, and policy checker in this repository, are in [docs/threat-model.md](docs/threat-model.md)
+and [docs/architecture.md](docs/architecture.md). They describe the intended controls and this lab's
+limits. Neither is an audit of a live environment. Nothing here has been applied.
+
 ## Setup
 
 Python 3.11 or newer, Terraform 1.6 or newer, and (optional) TFLint.
