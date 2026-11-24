@@ -50,6 +50,11 @@ single-account trail, per-bucket KMS keys, account BPA, MFA roles, and a plan-ev
 does not repeat it. It adds the organization layer (SCP, RCP, organization trail, delegated admins),
 detection services, permission-boundary delegation, auto-remediation, and study material.
 
+A STRIDE threat model and an architecture write-up, both grounded in the Terraform, exercises,
+runbook, and policy checker in this repository, are in [docs/threat-model.md](docs/threat-model.md)
+and [docs/architecture.md](docs/architecture.md). They describe the intended controls and this lab's
+limits. Neither is an audit of a live environment. Nothing here has been applied.
+
 ## Setup
 
 Python 3.11 or newer, Terraform 1.6 or newer, and (optional) TFLint.
@@ -150,7 +155,7 @@ The 17 plan-mode failures from November 17, 2026 are unchanged. The four new fai
   organization with SCPs and RCPs enabled, trusted access for CloudTrail, GuardDuty and Security Hub,
   and existing `KeyAdmin`, `TerraformDeployer` and `SecurityLogReader` roles (KMS rejects key policies
   that name principals that do not exist).
-- Compressed into one root module and one provider. A real layout splits management, security and
+- Compressed into one root module and two providers (the default provider in `var.region`, and a `replica` alias in `var.replica_region` for the trail replica bucket and its key). A real layout splits management, security and
   member accounts and deploys the remediation per account and Region.
 - SCPs and RCPs do not apply to the management account, where this lab puts the trail, key and bucket.
 - `src/scs_lab/policy_eval.py` evaluates one policy at a time and supports a stated subset of IAM
