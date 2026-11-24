@@ -174,15 +174,16 @@ reserved concurrency. Exercises 3, 6, and 7.
 study VPC is `10.42.0.0/16` by default, split across two named Availability
 Zones into public, app, and endpoint subnets. Public subnets have an internet
 gateway, `map_public_ip_on_launch = false`, and no workload resource in this
-lab. App and endpoint route tables have no internet gateway and no NAT
-gateway. Flow logs go to a CloudWatch log group encrypted with
+lab. App and endpoint route tables do not route to the internet gateway and have
+no NAT gateway. Flow logs go to a CloudWatch log group encrypted with
 `aws_kms_key.infra_logs`. The launch template requires IMDSv2, encrypts the
 root volume with a customer managed key, attaches the Session Manager
 instance profile, and does not set a key pair. Inspector v2 is an enabler
 resource for EC2, ECR, and Lambda, default on, and was not run. The WAF web
 ACL is regional, includes the Core Rule Set, Known Bad Inputs, and a
-rate-based rule of 1000 requests per IP, and is not associated with a
-resource. Exercises 9 to 15.
+rate-based rule of 1000 requests per IP in a 5-minute window (the WAF
+default; the template does not set `evaluation_window_sec`), and is not
+associated with a resource. Exercises 9 to 15.
 
 ## 5. Decision records
 
@@ -209,8 +210,9 @@ Shield Advanced, Image Builder, Patch Manager runs, GenAI guardrails, hybrid
 connectivity (Site-to-Site VPN, Direct Connect, MACsec), Verified Access,
 IAM Identity Center, Cognito, Secrets Manager rotation, imported key
 material and external key stores, Macie, Security Lake, Detective, AWS
-Config recorders or conformance packs, Control Tower, Audit Manager, and
-Artifact. The domain map lists the same exam-scope exclusions.
+Config conformance packs, Control Tower, Audit Manager, and Artifact. The
+domain map lists those exam-scope exclusions. This root also has no AWS
+Config recorders.
 
 The lab also does not create the `KeyAdmin`, `TerraformDeployer`,
 `SecurityLogReader`, or `BreakGlassAdmin` roles it names. It does not create
